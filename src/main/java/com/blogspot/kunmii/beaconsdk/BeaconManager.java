@@ -5,6 +5,7 @@ import android.util.Log;
 
 import com.blogspot.kunmii.beaconsdk.data.Beacon;
 import com.blogspot.kunmii.beaconsdk.utils.Config;
+import com.blogspot.kunmii.beaconsdk.utils.Helpers;
 import com.kontakt.sdk.android.ble.manager.ProximityManager;
 import com.kontakt.sdk.android.ble.manager.ProximityManagerFactory;
 import com.kontakt.sdk.android.ble.manager.listeners.EddystoneListener;
@@ -21,6 +22,7 @@ import com.kontakt.sdk.android.common.profile.RemoteBluetoothDevice;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -45,34 +47,56 @@ public class BeaconManager {
 
 
     HashMap<String, Beacon> beaconsNearMe = new HashMap<>();
-    List<OnBeaconListener> listeners = new ArrayList<>();
 
-    private BeaconManager(Application context)
+    List<WeakReference<OnBeaconListener>> beaconlisteners = new ArrayList<>();
+    List<WeakReference<OnContentListener>> contentListeners = new ArrayList<>();
+
+    private BeaconManager(Application context, String token)
     {
         mContext = context;
         repository = LibraryRepository.getInstance(context);
+
+        if(Helpers.getToken(context) == null){
+            Helpers.storeUserToken(token, context);
+        }
+        else if(!Helpers.getToken(context).equals(token)){
+            repository.beaconDAO.nukeAll();
+            //mInstance.contentDao.nukeAll();
+
+            Helpers.storeUserToken(token, context);
+        }
+
+        repository.registerBeaconUpdateListener(beacons -> {
+            projectBeacons = beacons;
+        });
+
+
+    }
+
+
+    public static BeaconManager getInstance(Application application, String token)
+    {
+        if (instance == null)
+        {
+            instance = new BeaconManager(application, token);
+
+        }
+        return instance;
+    }
+
+    public void addBeaconListener(OnBeaconListener listener){
+        this.beaconlisteners.add(new WeakReference<>(listener));
+    }
+
+    public void addContentListener(OnContentListener contentListener)
+    {
+        this.contentListeners.add(new WeakReference<>(contentListener));
     }
 
     public void setSensitivity(Beacon.Proximity mSensitivity) {
         this.mSensitivity = mSensitivity;
     }
 
-    public static BeaconManager getInstance(Application application, String token)
-    {
-        if (instance == null)
-        {
-            instance = new BeaconManager(application);
-
-            instance.repository.getBeacons().observe(application, (List<Beacon> beacons) ->{
-
-        });
-        }
-
-
-
-
-        return instance;
-    }
 
 
     public void startScanning()
@@ -317,9 +341,9 @@ public class BeaconManager {
                 {
                     beaconsNearMe.remove(device.getAddress());
 
-                    for(OnBeaconListener listeners : listeners)
+                    for(WeakReference<OnBeaconListener> listeners : beaconlisteners)
                     {
-                        listeners.onLeftBeaconZoneList(prev);
+                        listeners.get().onLeftBeaconZoneList(prev);
                     }
                 }
 
@@ -335,9 +359,9 @@ public class BeaconManager {
                     b.proximity = proximity;
                     beaconsNearMe.put(device.getAddress(), b);
 
-                    for(OnBeaconListener listeners : listeners)
+                    for(WeakReference<OnBeaconListener> listeners : beaconlisteners)
                     {
-                        listeners.onReachedBeaconZone(b);
+                        listeners.get().onReachedBeaconZone(b);
                     }
                 }
             }

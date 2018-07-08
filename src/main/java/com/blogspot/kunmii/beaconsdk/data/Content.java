@@ -23,7 +23,7 @@ public class Content  {
     String body;
 
     @ColumnInfo(name = "beacons")
-    List<String>  beacons;
+    String  beacons;
 
     @ColumnInfo(name = "published")
     String published;
@@ -59,11 +59,11 @@ public class Content  {
         this.body = body;
     }
 
-    public List<String> getBeacons() {
+    public String getBeacons() {
         return beacons;
     }
 
-    public void setBeacons(List<String> beacons) {
+    public void setBeacons(String beacons) {
         this.beacons = beacons;
     }
 

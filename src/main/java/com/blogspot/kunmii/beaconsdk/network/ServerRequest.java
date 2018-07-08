@@ -2,7 +2,7 @@ package com.blogspot.kunmii.beaconsdk.network;
 
 import android.app.Application;
 
-import com.blogspot.kunmii.beaconadmin.Config;
+import com.blogspot.kunmii.beaconsdk.utils.Config;
 
 import java.util.HashMap;
 

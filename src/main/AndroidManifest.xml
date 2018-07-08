@@ -15,6 +15,13 @@
 
         <service android:name="com.kontakt.sdk.android.ble.service.ProximityService" android:exported="false"/>
 
+        <service
+            android:name=".MyFirebaseInstanceIDService">
+            <intent-filter>
+                <action android:name="com.google.firebase.INSTANCE_ID_EVENT"/>
+            </intent-filter>
+        </service>
+
         <meta-data
             android:name="kontakt.io.API_KEY"
             android:value="none" />

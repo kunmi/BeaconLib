@@ -37,28 +37,32 @@ public class LibraryRepository {
 
     }
 
-    public static LibraryRepository getInstance(Application application, OnBeaconUpdatedListener updateListener)
+    public static LibraryRepository getInstance(Application application)
     {
         if(mInstance == null) {
             mInstance = new LibraryRepository(application);
-
-            mInstance.listener  = updateListener;
-
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-
-                    if(mInstance.beaconDAO.getBeacons().size() ==0)
-                    {
-                        mInstance.performBeaconUpdateCheck();
-                    }
-
-                }
-            }).start();
-
         }
 
         return mInstance;
+    }
+
+    public void registerBeaconUpdateListener(OnBeaconUpdatedListener updateListener){
+        mInstance.listener  = updateListener;
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+
+                List<Beacon> beacons = mInstance.beaconDAO.getBeacons();
+                updateListener.onUpdate(beacons);
+
+                if(beacons.size() ==0)
+                {
+                    mInstance.performBeaconUpdateCheck();
+                }
+
+            }
+        }).start();
+
     }
 
     public List<Beacon> getBeacons(){
@@ -74,7 +78,6 @@ public class LibraryRepository {
         public void onUpdate(List<Beacon> beacons);
     }
 
-
     private void performBeaconUpdateCheck(){
 
         ServerRequest updateRequest = Helpers.craftProjectUpdateRequest(mContext);
@@ -86,7 +89,6 @@ public class LibraryRepository {
 
                 String str = response.getJsonBody();
                 Log.d("kunmi", str);
-
 
             }
         });

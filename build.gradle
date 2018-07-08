@@ -37,11 +37,10 @@ dependencies {
 
     implementation fileTree(dir: 'libs', include: ['*.jar'])
 
-    implementation 'com.android.support:appcompat-v7:27.1.1'
+    implementation 'com.google.firebase:firebase-messaging:11.8.0'
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'com.android.support.test:runner:1.0.2'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
-
 
 
     implementation "android.arch.persistence.room:runtime:$room_version"
@@ -54,9 +53,16 @@ dependencies {
     implementation "android.arch.persistence.room:guava:$room_version"
 // ViewModel and LiveData
     implementation "android.arch.lifecycle:extensions:$lifecycle_version"
+    // alternately - if using Java8, use the following instead of compiler
+    implementation "android.arch.lifecycle:common-java8:$lifecycle_version"
+    // optional - Test helpers for LiveData
+    testImplementation "android.arch.core:core-testing:$lifecycle_version"
+    api "android.arch.lifecycle:extensions:$lifecycle_version"
 
 
 
     compile 'com.kontaktio:sdk:3.3.2'
 
 }
+
+apply plugin: 'com.google.gms.google-services'

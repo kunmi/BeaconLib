@@ -5,7 +5,6 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
-import android.support.v7.app.AlertDialog;
 
 
 import com.blogspot.kunmii.beaconsdk.network.ServerRequest;
@@ -22,22 +21,6 @@ import java.io.InputStreamReader;
 import java.util.List;
 
 public class Helpers {
-    public static void showDialog(Context activity, String title,String text, String okText,DialogInterface.OnClickListener listener)
-    {
-        AlertDialog.Builder build = new AlertDialog.Builder(activity);
-        build.setTitle(title);
-        build.setMessage(text);
-        build.setPositiveButton(okText, listener);
-        build.show();
-    }
-
-    public static void showDialog(Context activity, String title,String text)
-    {
-        AlertDialog.Builder build = new AlertDialog.Builder(activity);
-        build.setTitle(title);
-        build.setMessage(text);
-        build.show();
-    }
 
 
     public static void storeUserToken(String token, Application mContext)
@@ -122,12 +105,11 @@ public class Helpers {
 
     public static ServerRequest craftProjectUpdateRequest(Application application)
     {
-        String token = Helpers.getToken(application);
-
+        String token = String.valueOf(Helpers.getToken(application));
         String beacon_update = String.valueOf(Helpers.getBeaconLastUpdate(application));
         String content_update =  String.valueOf(Helpers.getContentLastUpdate(application));
 
-        ServerRequest request = new ServerRequest(application, Config.SERVER_URL);
+        ServerRequest request = new ServerRequest(application, Config.UPDATE_URL);
         request.putHeader("Content-Type", "application/json");
 
 
@@ -135,7 +117,7 @@ public class Helpers {
         JSONObject jsonObject = new JSONObject();
 
         try {
-            jsonObject.put("token", token);
+            jsonObject.put("token", token==null?"":token);
             jsonObject.put("beacon_update", beacon_update);
             jsonObject.put("content_update", content_update);
         }
@@ -144,6 +126,7 @@ public class Helpers {
             exp.printStackTrace();
         }
 
+        request.setBody(jsonObject.toString());
 
         return request;
     }
@@ -222,6 +205,33 @@ public class Helpers {
         }
 
         return jsonObject;
+    }
+
+    public static ServerRequest sendFCMTokenToServer(Application application, String fcmToken)
+    {
+
+        String token = getToken(application);
+
+        ServerRequest request = new ServerRequest(application, Config.PUSH_TOKEN_URL);
+        request.putHeader("Content-Type", "application/json");
+
+
+
+        JSONObject jsonObject = new JSONObject();
+
+        try {
+            jsonObject.put("token", token==null?"":token);
+            jsonObject.put("fcmToken", fcmToken);
+        }
+        catch (JSONException exp)
+        {
+            exp.printStackTrace();
+        }
+
+        request.setBody(jsonObject.toString());
+
+        return request;
+
     }
 
 

@@ -155,25 +155,9 @@ public class Helpers {
 
         JSONObject obj = new JSONObject();
         try {
-            JSONObject beaconJSON = new JSONObject(beacon.getBeaconData());
             obj.put("token", Helpers.getToken(application));
             obj.put("beacon_id", beacon.getObjectId());
-            if(!beacon.getType().equals("iBeacon")){
-                if(beaconJSON.has(Config.NETWORK_JSON_NODE.EDDY_TELEMETRY))
-                {
-                    obj.put("telemetry", beaconJSON.getString(Config.NETWORK_JSON_NODE.EDDY_TELEMETRY));
-                }
-                else
-                {
-                    obj.put("telemetry", "");
-                }
-            }
-            else
-            {
-                obj.put("telemetry", "");
-            }
-
-
+            obj.put("telemetry", beacon.telemetry);
         }
         catch (JSONException exp){
             exp.printStackTrace();

@@ -40,6 +40,9 @@ public class Beacon {
     @Ignore
     public Proximity proximity = Proximity.OUT_OF_RANGE;
 
+    @Ignore
+    public String telemetry = "";
+
 
     public String getObjectId() {
         return objectId;
@@ -112,6 +115,7 @@ public class Beacon {
         else
             return false;
     }
+
 
     @Ignore
     String getData(){

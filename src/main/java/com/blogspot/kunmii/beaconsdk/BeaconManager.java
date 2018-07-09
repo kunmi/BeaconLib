@@ -33,6 +33,7 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class BeaconManager {
 
@@ -51,7 +52,7 @@ public class BeaconManager {
     HashMap<String, IBeaconDevice> ibeacons = new HashMap<>();
     HashMap<String, IEddystoneDevice> eddystones = new HashMap<>();
 
-    List<Beacon> projectBeacons = new ArrayList<>();
+    ConcurrentHashMap<String, Beacon> projectBeacons = new ConcurrentHashMap<>();
     HashMap<String, Beacon> projectBeaconsDiscovered = new HashMap<>();
 
 
@@ -84,7 +85,13 @@ public class BeaconManager {
         }
 
         repository.registerUpdateListeners(beacons -> {
-            projectBeacons = beacons;
+
+            projectBeacons.clear();
+
+            for(Beacon b : beacons){
+                projectBeacons.put(b.getLookUp(), b);
+            }
+
         }, contents -> {
 
             this.contents = contents;
@@ -122,7 +129,6 @@ public class BeaconManager {
     public void setSensitivity(Beacon.Proximity mSensitivity) {
         this.mSensitivity = mSensitivity;
     }
-
 
 
     public void startScanning()
@@ -174,7 +180,6 @@ public class BeaconManager {
             public void onIBeaconDiscovered(IBeaconDevice ibeacon, IBeaconRegion region) {
                 Log.i("Sample", "IBeacon discovered: " + ibeacon.toString());
 
-                String key = ibeacon.getAddress();
                 //ibeacons.put(key, ibeacon);
                 addNewBeaconDevice(ibeacon);
 
@@ -184,7 +189,7 @@ public class BeaconManager {
             public void onIBeaconsUpdated(List<IBeaconDevice> ibeacons, IBeaconRegion region) {
                 Log.d("","");
 
-                updateIbeacon(ibeacons);
+                updateIBeacons(ibeacons);
 
             }
 
@@ -192,10 +197,7 @@ public class BeaconManager {
             public void onIBeaconLost(IBeaconDevice ibeacon, IBeaconRegion region) {
                 super.onIBeaconLost(ibeacon, region);
 
-
-                String key = ibeacon.getAddress();
-
-                removeIbeacon(ibeacon);
+                removeBeacons(ibeacon);
 
             }
         };
@@ -207,165 +209,89 @@ public class BeaconManager {
             public void onEddystoneDiscovered(IEddystoneDevice eddystone, IEddystoneNamespace namespace) {
                 Log.i("Sample", "Eddystone discovered: " + eddystone.toString());
 
-                String key = eddystone.getAddress();
-
-                //eddystones.put(key, eddystone);
-                addNewEddystone(eddystone);
+                addNewBeaconDevice(eddystone);
             }
 
             @Override
             public void onEddystonesUpdated(List<IEddystoneDevice> eddystones, IEddystoneNamespace namespace) {
                 super.onEddystonesUpdated(eddystones, namespace);
 
-                updateEddystone(eddystones);
+                updateEddyBeacons(eddystones);
             }
 
             @Override
             public void onEddystoneLost(IEddystoneDevice eddystone, IEddystoneNamespace namespace) {
                 super.onEddystoneLost(eddystone, namespace);
 
-                String key = eddystone.getAddress();
-
-                removeEddystone(eddystone);
+                removeBeacons(eddystone);
 
             }
         };
     }
 
-    void addNewBeaconDevice(IBeaconDevice beaconDevice){
+    void addNewBeaconDevice(RemoteBluetoothDevice beaconDevice){
+        String address = resolveLookUp(beaconDevice);
+
         synchronized (lock)
         {
-            if(!projectBeaconsDiscovered.containsKey(beaconDevice.getAddress()))
-            {
-                ibeacons.put(beaconDevice.getAddress(), beaconDevice);
+            if(!projectBeaconsDiscovered.containsKey(address)) {
 
-                for(Beacon b : projectBeacons)
-                {
-                    if(!b.getType().equals("iBeacon"))
-                        continue;
+                if (beaconDevice instanceof IBeaconDevice)
+                    ibeacons.put(beaconDevice.getAddress(), (IBeaconDevice) beaconDevice);
+                else
+                    eddystones.put(beaconDevice.getAddress(), (IEddystoneDevice) beaconDevice);
 
-                    try {
+                if (projectBeacons.containsKey(address)) {
 
-                        JSONObject obj = new JSONObject(b.getBeaconData());
+                    Beacon b = projectBeacons.get(address);
+                    b.proximity = resolveProximity(beaconDevice);
 
-                        if (beaconDevice.getProximityUUID().toString() != null && beaconDevice.getProximityUUID().toString().
-                                equals(obj.getString(Config.NETWORK_JSON_NODE.IBEACON_UUID))) {
-
-                            if(String.valueOf(beaconDevice.getMajor())
-                                    .equals(String.valueOf(obj.getString(Config.NETWORK_JSON_NODE.IBEACON_MAJOR)))){
-
-
-                                if(!(obj.getString(Config.NETWORK_JSON_NODE.IBEACON_MINOR).equals("")) &&
-                                        String.valueOf(beaconDevice.getMinor()).equals(obj.getString(Config.NETWORK_JSON_NODE.IBEACON_MINOR)))
-                                {
-                                    projectBeaconsDiscovered.put(beaconDevice.getAddress(), b);
-                                    performBeaconsNearMeUpdate(beaconDevice);
-                                }
-
-
-                            }
-
-
-                        }
-                    }
-                    catch (JSONException exp)
-                    {
-                        exp.printStackTrace();
-                    }
+                    projectBeaconsDiscovered.put(address, b);
+                    performBeaconsNearMeUpdate(beaconDevice);
                 }
             }
             else
+            {
                 performBeaconsNearMeUpdate(beaconDevice);
-        }
-    }
-
-    void addNewEddystone(IEddystoneDevice eddystoneDevice){
-        synchronized (lock)
-        {
-            String key = eddystoneDevice.getAddress();
-            if(!projectBeaconsDiscovered.containsKey(key))
-            {
-                eddystones.put(eddystoneDevice.getAddress(), eddystoneDevice);
-
-                for(Beacon b : projectBeacons)
-                {
-                    if(b.getType().equals("iBeacon"))
-                        continue;
-
-                    try {
-
-                        JSONObject obj = new JSONObject(b.getBeaconData());
-
-                        if (eddystoneDevice.getNamespace() != null && eddystoneDevice.getNamespace().
-                                equals(obj.getString(Config.NETWORK_JSON_NODE.EDDY_NAMESPACEID))) {
-
-
-                                if(eddystoneDevice.getInstanceId()!=null && eddystoneDevice.getInstanceId()
-                                        .equals(obj.getString(Config.NETWORK_JSON_NODE.EDDY_INSTANCEID)))
-                                {
-                                    projectBeaconsDiscovered.put(eddystoneDevice.getAddress(), b);
-                                    performBeaconsNearMeUpdate(eddystoneDevice);
-                                }
-
-                            }
-                    }
-                    catch (JSONException exp)
-                    {
-                        exp.printStackTrace();
-                    }
-                }
-
+                //Already seen and marked as discovered
             }
-            else
-                performBeaconsNearMeUpdate(eddystoneDevice);
-
         }
     }
 
 
-    void updateIbeacon(List<IBeaconDevice> devices){
+    void updateIBeacons(List<IBeaconDevice> devices){
 
         for(IBeaconDevice dev : devices )
         {
             performBeaconsNearMeUpdate(dev);
         }
     }
+    void updateEddyBeacons(List<IEddystoneDevice> devices){
 
-    void removeIbeacon(IBeaconDevice device)
-    {
-
-        if(ibeacons.containsKey(device.getAddress()))
-        {
-            ibeacons.remove(device.getAddress());
-            performBeaconsNearMeUpdate(device);
-        }
-
-    }
-
-    void updateEddystone(List<IEddystoneDevice> devices)
-    {
-        for(IEddystoneDevice dev : devices)
+        for(IEddystoneDevice dev : devices )
         {
             performBeaconsNearMeUpdate(dev);
         }
     }
 
-    void removeEddystone(IEddystoneDevice device)
+    void removeBeacons(RemoteBluetoothDevice device)
     {
-         if(eddystones.containsKey(device.getAddress()))
-        {
+
+        if(device instanceof IBeaconDevice){
+            ibeacons.remove(device.getAddress());
+        }
+        else {
             eddystones.remove(device.getAddress());
-            performBeaconsNearMeUpdate(device);
         }
 
-
-
+        String lookup = resolveLookUp(device);
+        if(projectBeaconsDiscovered.containsKey(lookup))
+            performBeaconsNearMeUpdate(device);
     }
 
-    void performBeaconsNearMeUpdate(RemoteBluetoothDevice device){
 
+    Beacon.Proximity resolveProximity(RemoteBluetoothDevice device){
         Beacon.Proximity proximity = Beacon.Proximity.OUT_OF_RANGE;
-
         switch (device.getProximity()){
 
             case FAR:
@@ -383,25 +309,33 @@ public class BeaconManager {
             case UNKNOWN:
                 proximity = Beacon.Proximity.OUT_OF_RANGE;
         }
+        return proximity;
 
-        if(beaconsNearMe.containsKey(device.getAddress()))
+    }
+    void performBeaconsNearMeUpdate(RemoteBluetoothDevice device){
+
+        Beacon.Proximity proximity =resolveProximity(device);
+        String lookUpKey = resolveLookUp(device);
+
+        if(beaconsNearMe.containsKey(lookUpKey))
         {
-            Beacon prev = beaconsNearMe.get(device.getAddress());
+            Beacon prev = beaconsNearMe.get(lookUpKey);
 
             if(prev.proximity != proximity)
             {
                 if(proximity.getId() <= mSensitivity.getId()){
 
                     prev.proximity = proximity;
-                    beaconsNearMe.put(device.getAddress(), prev);
+                    beaconsNearMe.put(lookUpKey, prev);
+                    projectBeaconsDiscovered.put(lookUpKey, prev);
                 }
 
                 else if(proximity.getId() > mSensitivity.getId())
                 {
-                    beaconsNearMe.remove(device.getAddress());
+                    beaconsNearMe.remove(lookUpKey);
 
                     prev.proximity = proximity;
-                    projectBeaconsDiscovered.put(device.getAddress(), prev);
+                    projectBeaconsDiscovered.put(lookUpKey, prev);
 
                     for(WeakReference<OnBeaconListener> listeners : beaconlisteners)
                     {
@@ -415,13 +349,18 @@ public class BeaconManager {
 
             if(proximity.getId() <= mSensitivity.getId())
             {
-                if(projectBeaconsDiscovered.containsKey(device.getAddress()))
+                if(projectBeaconsDiscovered.containsKey(lookUpKey))
                 {
-                    Beacon b = projectBeaconsDiscovered.get(device.getAddress());
+                    Beacon b = projectBeaconsDiscovered.get(lookUpKey);
 
                         b.proximity = proximity;
-                        beaconsNearMe.put(device.getAddress(), b);
-                        projectBeaconsDiscovered.put(device.getAddress(), b);
+
+                        if(device instanceof IEddystoneDevice){
+                            if(((IEddystoneDevice) device).getTelemetry()!=null)
+                               b.telemetry = ((IEddystoneDevice) device).getTelemetry().toString();
+                        }
+                        beaconsNearMe.put(lookUpKey, b);
+                        projectBeaconsDiscovered.put(lookUpKey, b);
 
                         for(WeakReference<OnBeaconListener> listeners : beaconlisteners)
                         {

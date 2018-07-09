@@ -22,6 +22,12 @@ public class Beacon {
     @ColumnInfo(name = "ref")
     String ref;
 
+    @ColumnInfo(name = "lookup")
+    String lookUp;
+
+    @ColumnInfo(name = "lastseen")
+    long lastSeen = 0;
+
     @ColumnInfo(name = "txpower")
     String txpower;
 
@@ -79,8 +85,25 @@ public class Beacon {
         return updated;
     }
 
+
     public void setUpdated(String updated) {
         this.updated = updated;
+    }
+
+    public String getLookUp() {
+        return lookUp;
+    }
+
+    public void setLookUp(String lookup){
+        this.lookUp = lookup;
+    }
+
+    public long getLastSeen() {
+        return lastSeen;
+    }
+
+    public void setLastSeen(long lastSeen) {
+        this.lastSeen = lastSeen;
     }
 
     public boolean isIbeacon(){

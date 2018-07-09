@@ -19,6 +19,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.Date;
 import java.util.List;
 
 public class LibraryRepository {
@@ -32,6 +33,9 @@ public class LibraryRepository {
     ContentDao contentDao;
     OnBeaconUpdatedListener beaconListener = null;
     OnContentUpdateListener contentListener = null;
+
+    private int last_seen_threshhold_in_seconds = 3600;
+
 
     private LibraryRepository(Application application){
         mContext = application;
@@ -110,6 +114,22 @@ public class LibraryRepository {
 
                             b.setObjectId(beaconJson.getString(Config.NETWORK_JSON_NODE.OBJECT_ID));
                             b.setType(beaconJson.getString(Config.NETWORK_JSON_NODE.BEACON_TYPE));
+
+                            StringBuilder sb = new StringBuilder();
+
+                            if(b.getType().equals("iBeacon")){
+                                sb.append(beaconJson.getString(Config.NETWORK_JSON_NODE.IBEACON_UUID));
+                                sb.append(beaconJson.getString(Config.NETWORK_JSON_NODE.IBEACON_MAJOR));
+                                sb.append(beaconJson.getString(Config.NETWORK_JSON_NODE.IBEACON_MINOR));
+                            }
+                            else
+                            {
+                                sb.append(beaconJson.getString(Config.NETWORK_JSON_NODE.EDDY_NAMESPACEID));
+                                sb.append(beaconJson.getString(Config.NETWORK_JSON_NODE.EDDY_INSTANCEID));
+                            }
+
+                            b.setLookUp(sb.toString());
+
 
                             b.setRef(beaconJson.getString(Config.NETWORK_JSON_NODE.BEACON_REF));
                             b.setTxpower(beaconJson.getString(Config.NETWORK_JSON_NODE.BEACON_TXPOWER));
@@ -192,6 +212,32 @@ public class LibraryRepository {
                     exp.printStackTrace();
                 }
 
+            });
+        }
+    }
+
+
+    public void sendBeaconSeen(Beacon b){
+
+        if((new Date().getTime() - b.getLastSeen() >= last_seen_threshhold_in_seconds)) {
+
+            ServerRequest req = Helpers.craftBeaconUpdateRequest(mContext, b);
+            req.execute(new IServerRequestListener() {
+                @Override
+                public void onResponse(ServerResponse response) {
+                    try {
+                        Log.d(getClass().getSimpleName(), "sendBeaconSeen " + response.getJsonBody());
+
+                        JSONObject obj = new JSONObject(response.getJsonBody());
+
+                        if(obj.getBoolean(Config.NETWORK_JSON_NODE.SUCCESS)){
+                            b.setLastSeen(new Date().getTime());
+                        }
+
+                    } catch (Exception exp) {
+                        exp.printStackTrace();
+                    }
+                }
             });
         }
     }

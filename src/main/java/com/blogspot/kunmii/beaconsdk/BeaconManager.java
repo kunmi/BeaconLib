@@ -12,6 +12,7 @@ import com.blogspot.kunmii.beaconsdk.data.Content;
 import com.blogspot.kunmii.beaconsdk.utils.Config;
 import com.blogspot.kunmii.beaconsdk.utils.Helpers;
 import com.kontakt.sdk.android.ble.connection.OnServiceReadyListener;
+import com.kontakt.sdk.android.ble.device.EddystoneDevice;
 import com.kontakt.sdk.android.ble.manager.ProximityManager;
 import com.kontakt.sdk.android.ble.manager.ProximityManagerFactory;
 import com.kontakt.sdk.android.ble.manager.listeners.EddystoneListener;
@@ -58,6 +59,7 @@ public class BeaconManager {
 
     List<WeakReference<OnBeaconListener>> beaconlisteners = new ArrayList<>();
     List<WeakReference<OnContentListener>> contentListeners = new ArrayList<>();
+
 
     Handler mHamdler = null;
     HandlerThread handlerThread = null;
@@ -271,12 +273,9 @@ public class BeaconManager {
                         exp.printStackTrace();
                     }
                 }
-
             }
             else
                 performBeaconsNearMeUpdate(beaconDevice);
-
-
         }
     }
 
@@ -401,6 +400,9 @@ public class BeaconManager {
                 {
                     beaconsNearMe.remove(device.getAddress());
 
+                    prev.proximity = proximity;
+                    projectBeaconsDiscovered.put(device.getAddress(), prev);
+
                     for(WeakReference<OnBeaconListener> listeners : beaconlisteners)
                     {
                         listeners.get().onLeftBeaconZoneList(prev);
@@ -417,21 +419,14 @@ public class BeaconManager {
                 {
                     Beacon b = projectBeaconsDiscovered.get(device.getAddress());
 
-                    if(b.proximity.getId() == proximity.getId() && beaconsNearMe.containsKey(device.getAddress())) {
-                        return;
-                    }
-                    else
-                    {
                         b.proximity = proximity;
                         beaconsNearMe.put(device.getAddress(), b);
+                        projectBeaconsDiscovered.put(device.getAddress(), b);
 
                         for(WeakReference<OnBeaconListener> listeners : beaconlisteners)
                         {
                             listeners.get().onReachedBeaconZone(b);
                         }
-                    }
-
-
                 }
             }
 
@@ -441,8 +436,10 @@ public class BeaconManager {
 
 
     OnBeaconListener mainBeaconListener = new OnBeaconListener() {
+
         @Override
         public void onReachedBeaconZone(Beacon newlySeen) {
+            Log.d("onReachedBeaconZone", newlySeen.getObjectId());
 
             new Thread(()->{
                 for(Content c: contents){
@@ -453,18 +450,37 @@ public class BeaconManager {
                             break;
                         }
                     }
-
                 }
+                repository.sendBeaconSeen(newlySeen);
+
             }).start();
-            //do a beacon last seen update here
-
-
         }
 
         @Override
         public void onLeftBeaconZoneList(Beacon justLost) {
-
+            Log.d("onLeftBeaconZoneList", justLost.getObjectId());
         }
     };
+
+
+    String resolveLookUp(RemoteBluetoothDevice dev){
+
+        StringBuilder sb = new StringBuilder();
+
+        if(dev instanceof IBeaconDevice){
+            sb.append(((IBeaconDevice) dev).getProximityUUID());
+            sb.append(String.valueOf(((IBeaconDevice) dev).getMajor()));
+            sb.append(String.valueOf(((IBeaconDevice) dev).getMinor()));
+        }
+        else {
+            sb.append(((IEddystoneDevice) dev).getNamespace());
+            sb.append(((IEddystoneDevice) dev).getInstanceId());
+        }
+
+        return sb.toString();
+
+    }
+
+
 
 }

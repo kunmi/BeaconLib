@@ -15,6 +15,10 @@ public interface BeaconDAO {
     @Query("SELECT * FROM beacon")
     List<Beacon> getBeacons();
 
+
+    @Query("SELECT * FROM beacon WHERE objectid = :objectId")
+    Beacon getBeaconWithObjectId(String objectId);
+
     @Query("UPDATE beacon SET beacon = :beaconData, type = :type, updated = :updated  WHERE objectid = :objectId")
     int UpdateBeacon(String objectId, String type, String beaconData, String updated);
 

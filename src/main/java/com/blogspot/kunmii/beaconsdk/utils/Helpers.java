@@ -7,6 +7,7 @@ import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 
 
+import com.blogspot.kunmii.beaconsdk.data.Beacon;
 import com.blogspot.kunmii.beaconsdk.network.ServerRequest;
 import com.google.gson.JsonObject;
 
@@ -61,6 +62,19 @@ public class Helpers {
         return defaultPref.getLong("content_update", -1);
     }
 
+    public static void storeFcmToken(String token, Application mContext){
+        SharedPreferences defaultPref = PreferenceManager.getDefaultSharedPreferences(mContext);
+        SharedPreferences.Editor editor = defaultPref.edit();
+
+        editor.putString("fcm", token);
+        editor.apply();
+    }
+
+    public static String getTokenFcm(Application mContext){
+        SharedPreferences defaultPref = PreferenceManager.getDefaultSharedPreferences(mContext);
+        return defaultPref.getString("fcm", null);
+    }
+
     public static boolean StoreUserData(JSONObject userData, Application context)
     {
         try {
@@ -106,8 +120,6 @@ public class Helpers {
     public static ServerRequest craftProjectUpdateRequest(Application application)
     {
         String token = String.valueOf(Helpers.getToken(application));
-        String beacon_update = String.valueOf(Helpers.getBeaconLastUpdate(application));
-        String content_update =  String.valueOf(Helpers.getContentLastUpdate(application));
 
         ServerRequest request = new ServerRequest(application, Config.UPDATE_URL);
         request.putHeader("Content-Type", "application/json");
@@ -118,8 +130,8 @@ public class Helpers {
 
         try {
             jsonObject.put("token", token==null?"":token);
-            jsonObject.put("beacon_update", beacon_update);
-            jsonObject.put("content_update", content_update);
+            jsonObject.put("beacon_update", Helpers.getBeaconLastUpdate(application));
+            jsonObject.put("content_update", Helpers.getContentLastUpdate(application));
         }
         catch (JSONException exp)
         {
@@ -131,24 +143,24 @@ public class Helpers {
         return request;
     }
 
-/*
+
     public static ServerRequest craftBeaconUpdateRequest(Application application, Beacon beacon)
     {
-        String token = Helpers.getUserToken(application);
+        String token = Helpers.getToken(application);
 
-        ServerRequest request = new ServerRequest(application, Config.BEACON_UPDATE_URL + "/" +
-                beacon.getProjectId() + "/" +
-                beacon.getFloorPlanId() + "/" +
-                beacon.getObjectId());
+        ServerRequest request = new ServerRequest(application, Config.BEACON_UPDATE_URL);
 
         request.putHeader("Authorization", token);
         request.putHeader("Content-Type", "application/json");
+
+
+//        JSONObject obj = new JSONObject(beacon.getBeaconData());
 
         request.setBody(beacon.getBeaconData());
 
         return request;
     }
-  */
+
     public static JSONObject createIBeaconJSON (Application application){
         JSONObject jsonObject = null;
 
@@ -209,19 +221,16 @@ public class Helpers {
 
     public static ServerRequest sendFCMTokenToServer(Application application, String fcmToken)
     {
-
         String token = getToken(application);
 
         ServerRequest request = new ServerRequest(application, Config.PUSH_TOKEN_URL);
         request.putHeader("Content-Type", "application/json");
 
-
-
         JSONObject jsonObject = new JSONObject();
 
         try {
             jsonObject.put("token", token==null?"":token);
-            jsonObject.put("fcmToken", fcmToken);
+            jsonObject.put("fcm", fcmToken);
         }
         catch (JSONException exp)
         {

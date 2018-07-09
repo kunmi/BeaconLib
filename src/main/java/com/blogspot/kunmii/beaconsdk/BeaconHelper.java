@@ -40,7 +40,6 @@ public class BeaconHelper {
     MutableLiveData<IBeaconDevice> lostIBeacon = new MutableLiveData<>();
     MutableLiveData<IEddystoneDevice> lostEddyBeacon = new MutableLiveData<>();
 
-
     public BeaconHelper(Application context) {
 
         KontaktSDK.initialize(context);

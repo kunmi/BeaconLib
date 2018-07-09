@@ -1,11 +1,17 @@
 package com.blogspot.kunmii.beaconsdk;
 
 import android.app.Application;
+import android.arch.lifecycle.LiveData;
+import android.os.Handler;
+import android.os.HandlerThread;
+import android.os.Looper;
 import android.util.Log;
 
 import com.blogspot.kunmii.beaconsdk.data.Beacon;
+import com.blogspot.kunmii.beaconsdk.data.Content;
 import com.blogspot.kunmii.beaconsdk.utils.Config;
 import com.blogspot.kunmii.beaconsdk.utils.Helpers;
+import com.kontakt.sdk.android.ble.connection.OnServiceReadyListener;
 import com.kontakt.sdk.android.ble.manager.ProximityManager;
 import com.kontakt.sdk.android.ble.manager.ProximityManagerFactory;
 import com.kontakt.sdk.android.ble.manager.listeners.EddystoneListener;
@@ -39,6 +45,8 @@ public class BeaconManager {
 
     Object lock = new Object();
 
+    List<Content> contents = new ArrayList<>();
+
     HashMap<String, IBeaconDevice> ibeacons = new HashMap<>();
     HashMap<String, IEddystoneDevice> eddystones = new HashMap<>();
 
@@ -51,6 +59,9 @@ public class BeaconManager {
     List<WeakReference<OnBeaconListener>> beaconlisteners = new ArrayList<>();
     List<WeakReference<OnContentListener>> contentListeners = new ArrayList<>();
 
+    Handler mHamdler = null;
+    HandlerThread handlerThread = null;
+
     private BeaconManager(Application context, String token)
     {
         mContext = context;
@@ -60,17 +71,30 @@ public class BeaconManager {
             Helpers.storeUserToken(token, context);
         }
         else if(!Helpers.getToken(context).equals(token)){
-            repository.beaconDAO.nukeAll();
+            new Thread(()->{
+                repository.beaconDAO.nukeAll();
+                Helpers.storeUserToken(token, context);
+
+            }).start();
+
             //mInstance.contentDao.nukeAll();
 
-            Helpers.storeUserToken(token, context);
         }
 
-        repository.registerBeaconUpdateListener(beacons -> {
+        repository.registerUpdateListeners(beacons -> {
             projectBeacons = beacons;
+        }, contents -> {
+
+            this.contents = contents;
+
         });
 
+        addBeaconListener(mainBeaconListener);
+    }
 
+
+    public LiveData<List<Content>> getContents(){
+        return repository.contentDao.getContents();
     }
 
 
@@ -101,11 +125,44 @@ public class BeaconManager {
 
     public void startScanning()
     {
-        KontaktSDK.initialize(mContext);
 
-        proximityManager = ProximityManagerFactory.create(mContext);
-        proximityManager.setIBeaconListener(createIBeaconListener());
-        proximityManager.setEddystoneListener(createEddystoneListener());
+        if (mHamdler == null){
+            HandlerThread handlerThread = null;
+
+            handlerThread = new HandlerThread("Worker Thread");
+            handlerThread.start();
+
+            mHamdler = new Handler(handlerThread.getLooper());
+            mHamdler.postDelayed(()->{
+
+                KontaktSDK.initialize(mContext);
+
+                proximityManager = ProximityManagerFactory.create(mContext);
+                proximityManager.setIBeaconListener(createIBeaconListener());
+                proximityManager.setEddystoneListener(createEddystoneListener());
+
+                proximityManager.connect(new OnServiceReadyListener() {
+                    @Override
+                    public void onServiceReady() {
+                        proximityManager.startScanning();
+                    }
+                });
+
+            },0);
+
+        }
+
+
+     }
+
+
+    public void stopScanning(){
+        proximityManager.stopScanning();
+        proximityManager = null;
+
+        handlerThread.quit();
+        mHamdler = null;
+        handlerThread=null;
     }
 
 
@@ -116,11 +173,8 @@ public class BeaconManager {
                 Log.i("Sample", "IBeacon discovered: " + ibeacon.toString());
 
                 String key = ibeacon.getAddress();
-
-
-                ibeacons.put(key, ibeacon);
-
-
+                //ibeacons.put(key, ibeacon);
+                addNewBeaconDevice(ibeacon);
 
             }
 
@@ -129,6 +183,7 @@ public class BeaconManager {
                 Log.d("","");
 
                 updateIbeacon(ibeacons);
+
             }
 
             @Override
@@ -152,7 +207,8 @@ public class BeaconManager {
 
                 String key = eddystone.getAddress();
 
-                eddystones.put(key, eddystone);
+                //eddystones.put(key, eddystone);
+                addNewEddystone(eddystone);
             }
 
             @Override
@@ -177,7 +233,7 @@ public class BeaconManager {
     void addNewBeaconDevice(IBeaconDevice beaconDevice){
         synchronized (lock)
         {
-            if(!ibeacons.containsKey(beaconDevice.getAddress()))
+            if(!projectBeaconsDiscovered.containsKey(beaconDevice.getAddress()))
             {
                 ibeacons.put(beaconDevice.getAddress(), beaconDevice);
 
@@ -217,6 +273,8 @@ public class BeaconManager {
                 }
 
             }
+            else
+                performBeaconsNearMeUpdate(beaconDevice);
 
 
         }
@@ -225,7 +283,8 @@ public class BeaconManager {
     void addNewEddystone(IEddystoneDevice eddystoneDevice){
         synchronized (lock)
         {
-            if(!eddystones.containsKey(eddystoneDevice.getAddress()))
+            String key = eddystoneDevice.getAddress();
+            if(!projectBeaconsDiscovered.containsKey(key))
             {
                 eddystones.put(eddystoneDevice.getAddress(), eddystoneDevice);
 
@@ -258,7 +317,8 @@ public class BeaconManager {
                 }
 
             }
-
+            else
+                performBeaconsNearMeUpdate(eddystoneDevice);
 
         }
     }
@@ -351,25 +411,60 @@ public class BeaconManager {
         }
         else{
 
-            if(proximity.getId() < mSensitivity.getId())
+            if(proximity.getId() <= mSensitivity.getId())
             {
                 if(projectBeaconsDiscovered.containsKey(device.getAddress()))
                 {
                     Beacon b = projectBeaconsDiscovered.get(device.getAddress());
-                    b.proximity = proximity;
-                    beaconsNearMe.put(device.getAddress(), b);
 
-                    for(WeakReference<OnBeaconListener> listeners : beaconlisteners)
-                    {
-                        listeners.get().onReachedBeaconZone(b);
+                    if(b.proximity.getId() == proximity.getId() && beaconsNearMe.containsKey(device.getAddress())) {
+                        return;
                     }
+                    else
+                    {
+                        b.proximity = proximity;
+                        beaconsNearMe.put(device.getAddress(), b);
+
+                        for(WeakReference<OnBeaconListener> listeners : beaconlisteners)
+                        {
+                            listeners.get().onReachedBeaconZone(b);
+                        }
+                    }
+
+
                 }
             }
 
         }
 
-
     }
 
+
+    OnBeaconListener mainBeaconListener = new OnBeaconListener() {
+        @Override
+        public void onReachedBeaconZone(Beacon newlySeen) {
+
+            new Thread(()->{
+                for(Content c: contents){
+
+                    for(String objIds : c.getBeaconsAsListString()){
+                        if(objIds.equals(newlySeen.getObjectId())){
+                            repository.contentDao.setDiscovered(c.getObjectId());
+                            break;
+                        }
+                    }
+
+                }
+            }).start();
+            //do a beacon last seen update here
+
+
+        }
+
+        @Override
+        public void onLeftBeaconZoneList(Beacon justLost) {
+
+        }
+    };
 
 }

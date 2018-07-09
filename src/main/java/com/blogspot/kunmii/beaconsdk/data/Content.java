@@ -3,10 +3,15 @@ package com.blogspot.kunmii.beaconsdk.data;
 
 import android.arch.persistence.room.ColumnInfo;
 import android.arch.persistence.room.Entity;
+import android.arch.persistence.room.Ignore;
 import android.arch.persistence.room.PrimaryKey;
 import android.support.annotation.NonNull;
 import android.support.annotation.StringRes;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity(tableName = "content")
@@ -90,5 +95,52 @@ public class Content  {
     public void setRead(Boolean read) {
         this.read = read;
     }
+
+
+    @Ignore
+    public List<String> getBeaconsAsListString(){
+        List<String> beacons = new ArrayList<>();
+
+        try {
+            JSONArray array = new JSONArray(getBeacons());
+
+            for(int i=0; i< array.length(); i++)
+            {
+                beacons.add(array.getString(i));
+            }
+
+
+        }
+        catch (JSONException exp)
+        {
+            exp.printStackTrace();
+        }
+
+        return beacons;
+    }
+
+    @Ignore
+    public List<Beacon> getBeaconsAsList(BeaconDAO beaconDAO){
+        List<Beacon> beacons = new ArrayList<>();
+
+        try {
+            JSONArray array = new JSONArray(getBeacons());
+
+            for(int i=0; i< array.length(); i++)
+            {
+                Beacon b = beaconDAO.getBeaconWithObjectId(array.getString(i));
+                beacons.add(b);
+            }
+
+
+        }
+        catch (JSONException exp)
+        {
+            exp.printStackTrace();
+        }
+
+        return beacons;
+    }
+
 }
 

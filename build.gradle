@@ -64,5 +64,3 @@ dependencies {
     compile 'com.kontaktio:sdk:3.3.2'
 
 }
-
-apply plugin: 'com.google.gms.google-services'

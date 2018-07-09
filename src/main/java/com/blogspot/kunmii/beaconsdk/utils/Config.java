@@ -12,6 +12,7 @@ public class Config {
 
     public static final String UPDATE_URL = "update";
     public static final String PUSH_TOKEN_URL = "push";
+    public static final String BEACON_UPDATE_URL = "beaconseen";
 
     public static String TOKEN = "token";
 
@@ -27,6 +28,10 @@ public class Config {
     public interface NETWORK_JSON_NODE{
 
         String SUCCESS = "success";
+        String BEACONS = "beacons";
+        String CONTENTS = "contents";
+
+
         String JUST_BEACON = "beacon";
 
 
@@ -59,11 +64,14 @@ public class Config {
         String EDDY_INSTANCEID = "instanceId";
         String EDDY_TELEMETRY = "telemetry";
 
+        String CONTENT_TITLE = "title";
+        String CONTENT_BODY = "body";
+        String CONTENT_PUBLISHED = "published";
+        String CONTENT_BEACONS = "beacons";
 
-        String MESSAGE_PROJECT_ID = "project";
-        String MESSAGE_FLOORPLAN_ID = "floorplan";
-        String MESSAGE_TITLE = "title";
-        String MESSAGE_BODY = "body";
-        String MESSAGE_BEACONS = "beacons";
+
+        String BEACON_LAST_UPDATE_TAG = "beacon_update_tag";
+        String CONTENT_LAST_UPDATE_TAG = "content_update_tag";
+
     }
 }

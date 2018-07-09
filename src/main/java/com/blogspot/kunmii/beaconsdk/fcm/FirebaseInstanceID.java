@@ -15,6 +15,8 @@ public class FirebaseInstanceID extends FirebaseInstanceIdService {
 
         String refereshedToken = FirebaseInstanceId.getInstance().getToken();
 
+        Helpers.storeFcmToken(refereshedToken, getApplication());
+
         super.onTokenRefresh();
         ServerRequest request = Helpers.sendFCMTokenToServer(getApplication(), refereshedToken);
         request.execute((ServerResponse response)->{
